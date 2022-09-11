@@ -20,6 +20,10 @@ import com.faptastic.webcamx.utils.Commons
 import com.faptastic.webcamx.utils.Commons.REQUIRED_PERMISSIONS
 import java.util.*
 
+enum class WEBCAMX_PREVIEW_STATE {
+    ACTIVE, PAUSED, UNPAUSED
+}
+
 @Composable
 fun CameraCompose(
     context: Context,
@@ -28,28 +32,22 @@ fun CameraCompose(
     onCaptureClick: () -> Unit
 ) {
 
-/*
+    var previewState by remember { mutableStateOf(WEBCAMX_PREVIEW_STATE.ACTIVE) }
 
-    var preview_is_active by remember {
-        mutableStateOf(Boolean)
-    }
-
-    var ticks by remember { mutableStateOf(0) }
-
-    // Not 100% happy about this unused variable either
-    val timer = remember {
-        Timer().apply {
-            val task = object : TimerTask() {
-                override fun run() {
-                    //ticks++
-                    Commons.showLog("Timer...")
-
-                }
-            }
-            scheduleAtFixedRate(task, 1000, 1000)
+    var flipMode: () -> Unit = {
+        /*
+        if (inPreviewMode == true)
+        {
+            inPreviewMode = false
         }
+        else
+        {
+            inPreviewMode = true
+        }
+        */
     }
-*/
+
+
     var hasCamPermission by remember {
         mutableStateOf(
             REQUIRED_PERMISSIONS.all {
@@ -74,12 +72,13 @@ fun CameraCompose(
     }
     Column(modifier = Modifier.fillMaxSize()) {
         if (hasCamPermission) {
-            AndroidView(
-                modifier = Modifier.fillMaxSize(),
-                factory = {
-                    cameraX.startCameraPreviewView()
-                }
-            )
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = {
+                        cameraX.startCameraPreviewView()
+                    }
+                )
+             //   cameraX.bindCameraPreviewView()
         }
     }
     Column(
@@ -100,14 +99,31 @@ fun CameraCompose(
 
                 Text(text = "Capture")
             }
+/*
+            Button(
+                onClick = {
+                    if (cameraX.getPreviewIsActive())
+                        cameraX.pauseCameraPreview()
+                    else
+                        cameraX.resumeCameraPreview()
+
+                }
+            ) {
+
+
+                Text(text = "Toggle Preview")
+            }
+*/
 
             Button(
                 onClick = {
                     if (button_text.contains("Stop")) {
                         button_text = "Start Timer"
+                //        inPreviewMode = false
                     }
                     else{
                         button_text = "Stop Timer"
+                //        inPreviewMode = true
                     }
                         onTimerClick()
                 }
@@ -115,6 +131,7 @@ fun CameraCompose(
             ) {
                 Text(text = button_text)
             }
+
 
 
         }

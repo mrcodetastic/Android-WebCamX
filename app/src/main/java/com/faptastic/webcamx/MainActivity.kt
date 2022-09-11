@@ -10,6 +10,9 @@ import com.faptastic.webcamx.composable.CameraCompose
 import com.faptastic.webcamx.ui.theme.CameraXComposeTheme
 import com.faptastic.webcamx.utils.Commons.allPermissionsGranted
 import com.faptastic.webcamx.utils.Commons.showLog
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.util.*
 
 class MainActivity : ComponentActivity() {
@@ -19,11 +22,7 @@ class MainActivity : ComponentActivity() {
     var myTimer:Timer = Timer() // Old java language stuff.
     val timerMinuteFreq:Long = 45
 
-    fun onCaptureClick(doUpload:Boolean = false):Unit
-    {
-        if (allPermissionsGranted(this)) { cameraX.capturePhoto(doUpload) }
-    }
-
+    // Setup a java timer to execute the function
     var onTimerClickVar: () -> Unit = {
 
         if (timerActive == false)
@@ -35,9 +34,9 @@ class MainActivity : ComponentActivity() {
             myTimer.apply {
                 val task = object : TimerTask() {
                     override fun run() {
-                        //ticks++
+
                         showLog("Running timer upload task...")
-                        onCaptureClick(true)
+                        cameraX.capturePhoto(true)
 
                     }
                 }
@@ -56,13 +55,8 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, "Timer stopped.", Toast.LENGTH_SHORT).show()
             timerActive = false
         }
-
-
      //   onCaptureClick(true)
-
     }
-
-
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -71,12 +65,17 @@ class MainActivity : ComponentActivity() {
         setContent {
             CameraXComposeTheme {
                 CameraCompose(this, cameraX = cameraX, onTimerClickVar) {
-                    onCaptureClick()
+
+                    if (allPermissionsGranted(this)) {
+                        // Don't do this if the preview isn't active.
+                        if (cameraX.getPreviewIsActive())
+                            cameraX.capturePhoto(false)
+                    }
+
                 }
             }
         }
 
-
-    }
+    } // onCreate
 
 }

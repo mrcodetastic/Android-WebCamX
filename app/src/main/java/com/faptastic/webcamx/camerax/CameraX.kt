@@ -10,8 +10,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
-import android.view.OrientationEventListener
-import android.view.Surface
 import android.widget.Toast
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -21,11 +19,8 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.faptastic.webcamx.utils.Commons.showLog
 import com.faptastic.webcamx.utils.Upload.uploadJPEG
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.*
 import kotlinx.coroutines.Dispatchers.IO
-import kotlinx.coroutines.async
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -39,41 +34,85 @@ class CameraX(
 ) {
 
     private var imageCapture: ImageCapture? = null
-/*
-    private val _isRunning = MutableLiveData(false)
-    val isRunning: LiveData<Boolean>
-        get() = _isRunning
+    private var previewUseCase: Preview? = null
+    private var previewIsActive: Boolean = true
 
-    private val _seconds = MutableLiveData(0)
-    val seconds: LiveData<Int>
-        get() = _seconds
+    fun getPreviewIsActive():Boolean {
+        return previewIsActive
+    }
 
+    fun pauseCameraPreview()
+    {
+        if (!previewIsActive) return
 
-*/
+        //val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+        //val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
 
-    fun doNothing(): PreviewView {
+        // Must unbind the use-cases before rebinding them
+        //cameraProvider.unbindAll()
+        //cameraProvider.get
+
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+
+        try {
+           // cameraProviderFuture.get().unbind(preview)
+            cameraProviderFuture.get().unbind(previewUseCase)
+
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        previewIsActive = false
+    }
+
+    fun resumeCameraPreview()
+    {
+        if (previewIsActive) return
+
+        //val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+        //val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
+
+        // Must unbind the use-cases before rebinding them
+        //cameraProvider.unbindAll()
+        //cameraProvider.get
+
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+        val camSelector =
+            CameraSelector.Builder().requireLensFacing(CameraSelector.LENS_FACING_BACK).build()
+
+        try {
+            // cameraProviderFuture.get().unbind(preview)
+            cameraProviderFuture.get().bindToLifecycle(
+                owner,
+                camSelector,
+                previewUseCase // only the preview usecase in this case
+            )
+
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        previewIsActive = true
+    }
+
+    fun createCameraPreviewView(): PreviewView {
         val previewView = PreviewView(context)
         return previewView
     }
 
+    fun bindCameraPreviewView(): Unit {
 
-    fun endCameraPreview()
-    {
-        val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
-        val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
-
-        // Must unbind the use-cases before rebinding them
-        cameraProvider.unbindAll()
-
-    }
-
-
-    fun startCameraPreviewView(): PreviewView {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         val previewView = PreviewView(context)
+        /*
         val preview = Preview.Builder().build().also {
             it.setSurfaceProvider(previewView.surfaceProvider)
         }
+        */
+        previewUseCase = Preview.Builder().build().also {
+            it.setSurfaceProvider(previewView.surfaceProvider)
+        }
+
 
         imageCapture = ImageCapture.Builder().build()
 
@@ -83,7 +122,40 @@ class CameraX(
             cameraProviderFuture.get().bindToLifecycle(
                 owner,
                 camSelector,
-                preview,
+                previewUseCase,
+                imageCapture
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+
+
+    // Old function that does it all
+    fun startCameraPreviewView(): PreviewView {
+
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+        val previewView = PreviewView(context)
+        /*
+        val preview = Preview.Builder().build().also {
+            it.setSurfaceProvider(previewView.surfaceProvider)
+        }
+        */
+        previewUseCase = Preview.Builder().build().also {
+            it.setSurfaceProvider(previewView.surfaceProvider)
+        }
+
+
+        imageCapture = ImageCapture.Builder().build()
+
+        val camSelector =
+            CameraSelector.Builder().requireLensFacing(CameraSelector.LENS_FACING_BACK).build()
+        try {
+            cameraProviderFuture.get().bindToLifecycle(
+                owner,
+                camSelector,
+                previewUseCase,
                 imageCapture
             )
         } catch (e: Exception) {
@@ -94,19 +166,28 @@ class CameraX(
     }
 
      fun capturePhoto(doUpload:Boolean) = owner.lifecycleScope.launch {
+
+         if (doUpload) {
+             showLog("Waiting for two seconds.")
+             delay(2000L)
+             showLog("Resuming camera preview.")
+             resumeCameraPreview()
+             showLog("Waiting for five seconds.")
+             delay(5000L)
+             showLog("Taking photo with upload.")
+         }
+
+
         val imageCapture = imageCapture ?: return@launch
 
         imageCapture.takePicture(ContextCompat.getMainExecutor(context), object :
             ImageCapture.OnImageCapturedCallback() {
 
-
             override fun onCaptureSuccess(image: ImageProxy) {
                 super.onCaptureSuccess(image)
 
               //  val rotation = image.imageInfo.rotationDegrees
-
               //  showLog("Image rotation is: " + rotation)
-
 
                 owner.lifecycleScope.launch {
                     saveMediaToStorage(
@@ -130,6 +211,15 @@ class CameraX(
                 showLog("onCaptureSuccess: onError")
             }
         })
+
+         // Pause preview screen again
+         if (doUpload) {
+             showLog("Waiting for five seconds.")
+             delay(5000L)
+             showLog("Puasing camera preview.")
+             pauseCameraPreview()
+
+         }
     }
 
 
@@ -184,7 +274,6 @@ class CameraX(
                 }
 
              //   MediaScannerConnection.scanFile(context, arrayOf(image.toString()), null, null)
-
             }
 
             fos?.use {
@@ -195,7 +284,6 @@ class CameraX(
                     try {
                         bitmap.compress(Bitmap.CompressFormat.JPEG, 75, baos)
                         //baos.toByteArray()
-
 
                         // Process Picture, determine if day or night
                         val scaledBitmap = Bitmap.createScaledBitmap(bitmap, 640, 480, true)
@@ -225,6 +313,7 @@ class CameraX(
                         val threshold = 50
 
                         if (red < threshold && green < threshold && blue < threshold) {
+
                             showLog("Daylight of capture was below threshold. Skipping photo save and/or upload.")
 
                         } else {
@@ -232,7 +321,7 @@ class CameraX(
                             // Lets Upload
                             showLog("Uploading photo to remote web server.")
 
-                            uploadJPEG("https://xxxxxxx/webcam/upload.php", baos)
+                            uploadJPEG("https://xxxxx/webcam/upload.php", baos)
 
                             withContext(Dispatchers.Main) {
                                 Toast.makeText(context, "Uploaded Successfully", Toast.LENGTH_SHORT)
